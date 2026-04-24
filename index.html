@@ -4,6 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GENEF 광고 성과 대시보드</title>
+
+    <script>
+      (function() {
+        // 원하는 비밀번호를 아래 "0000" 대신 입력하세요.
+        const securePassword = "0000"; 
+        
+        const userInput = prompt("보안을 위해 비밀번호를 입력해주세요.");
+        
+        if (userInput !== securePassword) {
+          alert("비밀번호가 올바르지 않습니다. 다시 시도해주세요.");
+          // 비밀번호가 틀리면 내용을 아예 지워버리고 백지로 만듭니다.
+          document.write("<body style='background:#f8fafc; display:flex; justify-content:center; align-items:center; height:100vh;'><h1 style='color:#64748b; font-family:Pretendard;'>접근 권한이 없습니다.</h1></body>");
+          window.stop(); 
+          throw new Error("Access Denied");
+        }
+      })();
+    </script>
+
     <link
       rel="stylesheet"
       as="style"
