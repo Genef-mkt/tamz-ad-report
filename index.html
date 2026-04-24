@@ -8,7 +8,7 @@
     <script>
       (function() {
         // 원하는 비밀번호를 아래 "0000" 대신 입력하세요.
-        const securePassword = "0000"; 
+        const securePassword = "0701"; 
         
         const userInput = prompt("보안을 위해 비밀번호를 입력해주세요.");
         
@@ -148,8 +148,8 @@
       .ai-section h3 { margin: 0 0 16px 0; font-size: 16px; color: var(--text-main); font-weight: 700; }
       .ai-text-content { font-size: 14px; line-height: 1.6; color: #475569; font-weight: 500; white-space: pre-wrap; }
       .ai-action-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 20px 24px; font-size: 15px; font-weight: 600; color: #1e40af; line-height: 1.6; white-space: pre-wrap; }
-      .row-saturday td:first-child { color: #3b82f6; font-weight: 700; }
-      .row-sunday td:first-child { color: #ef4444; font-weight: 700; }
+      .row-saturday td { color: #3b82f6 !important; font-weight: 700; }
+      .row-sunday td { color: #ef4444 !important; font-weight: 700; }
     </style>
   </head>
   <body>
@@ -199,7 +199,23 @@
       Chart.defaults.plugins.tooltip.usePointStyle = true;
       Chart.defaults.plugins.tooltip.titleFont = { size: 12, weight: '600' };
       Chart.defaults.plugins.tooltip.bodyFont = { size: 13, weight: '600' };
-
+// [신규 추가] 툴팁 내부 원의 색상을 흰색이 아닌 그래프 고유 색상으로 꽉 채우도록 설정
+      Chart.defaults.plugins.tooltip.callbacks = Chart.defaults.plugins.tooltip.callbacks || {};
+      Chart.defaults.plugins.tooltip.callbacks.labelColor = function(context) {
+        let color = context.dataset.borderColor || context.dataset.backgroundColor;
+        
+        // 막대 차트나 도넛 차트처럼 배경색(backgroundColor)이 메인인 경우 처리
+        if (context.dataset.type === 'bar' || context.chart.config.type === 'doughnut') {
+            color = context.dataset.backgroundColor;
+        }
+        // 도넛 차트 등 색상이 배열로 지정된 경우 해당 인덱스 색상 추출
+        if (Array.isArray(color)) color = color[context.dataIndex];
+        
+        return {
+            borderColor: color,
+            backgroundColor: color // 툴팁 안쪽 색상을 강제로 채움
+        };
+      };
       const defaultGrid = { color: "#f1f5f9", drawBorder: false };
 
       function getReadablePieAggregation(rawDict, otherLabelOverride) {
@@ -348,6 +364,29 @@
                 category: (row["category"] || row["분류"] || "스토어").trim(), 
               };
             }).filter((r) => r.date && r.date <= YESTERDAY_STR);
+
+          // [신규 로직 추가] 동일 날짜/매체 내에서 '공구' 매출을 '스토어' 매출에서 차감하여 중복 방지
+          const revAdjustmentMap = {};
+          masterRevenueData.forEach(item => {
+            const key = `${item.date}_${item.platform}`;
+            if (!revAdjustmentMap[key]) revAdjustmentMap[key] = { storeItem: null, coopTotal: 0 };
+            
+            // 카테고리에 '공구'가 포함되면 차감할 금액으로 합산
+            if (item.category.includes("공구")) {
+              revAdjustmentMap[key].coopTotal += item.total_revenue;
+            } 
+            // 카테고리가 '스토어'이거나 비어있는 경우를 기준점으로 설정
+            else if (item.category === "스토어") {
+              revAdjustmentMap[key].storeItem = item;
+            }
+          });
+
+          // 기준점이 되는 '스토어' 매출에서 '공구' 합계액을 차감 (최소값 0)
+          Object.values(revAdjustmentMap).forEach(group => {
+            if (group.storeItem && group.coopTotal > 0) {
+              group.storeItem.total_revenue = Math.max(0, group.storeItem.total_revenue - group.coopTotal);
+            }
+          });
             
           masterViralData = viralRes.data.map((r) => {
               const row = {};
@@ -510,7 +549,8 @@
         if (tab === "VIRAL") {
             let totalPosts = currentViralData.length;
             let totalViews = 0, totalComments = 0, totalLikes = 0;
-            let viewsByComm = {}, dailyTrend = {};
+            let viewsByComm = {};
+            let dailyTrend = {};
 
             currentViralData.forEach(d => {
                 totalViews += d.views;
@@ -844,9 +884,9 @@
                   </div>
                   <div class="card" style="height:340px;"><canvas id="pieChart"></canvas></div>
               </div>
-              <div class="grid-charts" style="grid-template-columns: 1fr 1fr;">
+              <div class="grid-charts" style="grid-template-columns: 1fr 2fr;">
                   <div class="card" style="height:300px;"><h3 class="card-title" style="font-size:15px; margin-bottom: 12px;">전환 추이</h3><div class="chart-container"><canvas id="cvrChart"></canvas></div></div>
-                  <div class="card" style="height:300px;"><h3 class="card-title" style="font-size:15px; margin-bottom: 12px;">광고비 vs 스토어 매출</h3><div class="chart-container"><canvas id="spendRevChart"></canvas></div></div>
+                  <div class="card" style="height:300px;"><h3 class="card-title" style="font-size:15px; margin-bottom: 12px;">스토어별 매출 추이</h3><div class="chart-container"><canvas id="spendRevChart"></canvas></div></div>
               </div>
               <div class="grid-charts-full"><div class="card" style="height:300px;"><canvas id="roasChart"></canvas></div></div>
           `;
@@ -942,14 +982,29 @@
 
         data.forEach((d) => {
           const k = getK(d.date);
-          if (!trendGroups[k]) trendGroups[k] = { s: 0, r: 0, c: 0, conv: 0, sr: 0, minDate: d.date };
+          if (!trendGroups[k]) trendGroups[k] = { s: 0, r: 0, c: 0, conv: 0, sr: 0, revByPlat: {}, minDate: d.date };
           if (d.date < trendGroups[k].minDate) trendGroups[k].minDate = d.date;
           trendGroups[k].s += d.adSpend; trendGroups[k].r += d.revenue; trendGroups[k].c += d.click; trendGroups[k].conv += d.conversions;
         });
 
+        // [수정됨] 데이터에 존재하는 모든 매출 매체(플랫폼) 이름을 자동 수집 (공구 별도 분리)
+        const uniqueRevPlatforms = new Set();
+
         filteredRev.forEach((d) => {
           const k = getK(d.date);
-          if (trendGroups[k]) trendGroups[k].sr += d.total_revenue;
+          if (trendGroups[k]) {
+            trendGroups[k].sr += d.total_revenue;
+            
+            // 카테고리에 '공구'가 포함된 경우 플랫폼을 '공구'로 분리하여 집계
+            let platKey = d.platform;
+            if (d.category && d.category.includes("공구")) {
+              platKey = "공구";
+            }
+
+            // 매체(또는 공구)별로 매출 데이터 누적
+            trendGroups[k].revByPlat[platKey] = (trendGroups[k].revByPlat[platKey] || 0) + d.total_revenue;
+            uniqueRevPlatforms.add(platKey);
+          }
         });
 
         const labels = Object.keys(trendGroups).sort((a, b) => trendGroups[a].minDate.localeCompare(trendGroups[b].minDate));
@@ -978,7 +1033,8 @@
             labels,
             datasets: [
               { label: "전환수", data: labels.map((l) => trendGroups[l].conv), borderColor: "#3b82f6", backgroundColor: "rgba(59, 130, 246, 0.05)", borderWidth: 2.5, fill: true, tension: 0.3, yAxisID: "y1" },
-              { label: "전환율 (CVR %)", data: labels.map((l) => trendGroups[l].c > 0 ? ((trendGroups[l].conv / trendGroups[l].c) * 100).toFixed(2) : 0), borderColor: "#10b981", backgroundColor: "rgba(16, 185, 129, 0.1)", borderWidth: 2.5, fill: true, tension: 0.3, yAxisID: "y" }
+              // [수정됨] 전환율(CVR) 데이터 대신 전환 단가(CPS = 광고비 / 전환수) 데이터로 변경
+              { label: "전환 단가 (CPS)", data: labels.map((l) => trendGroups[l].conv > 0 ? (trendGroups[l].s / trendGroups[l].conv).toFixed(0) : 0), borderColor: "#10b981", backgroundColor: "rgba(16, 185, 129, 0.1)", borderWidth: 2.5, fill: true, tension: 0.3, yAxisID: "y" }
             ],
           },
           options: { 
@@ -1004,21 +1060,62 @@
           },
         });
 
+// [수정됨] 콤보 차트 로직: 상시 매출(Line) vs 이벤트 매출(Bar) + 이중 축(Dual Axis)
+        const spendRevDatasets = [];
+
+        let platIndex = 0;
+        uniqueRevPlatforms.forEach(plat => {
+          let color = brandColors[plat.toLowerCase()] || palette[platIndex % palette.length];
+          
+          if (plat === "자사몰") color = "#000000";
+          if (plat === "공구") color = "#8b5cf6";
+
+          const platData = labels.map((l) => trendGroups[l].revByPlat[plat] || 0);
+          const totalRev = platData.reduce((sum, val) => sum + val, 0);
+
+          if (totalRev > 0) {
+            const isEventData = plat.includes("쿠팡") || plat.includes("공구");
+            
+            spendRevDatasets.push({
+              type: isEventData ? "bar" : "line", 
+              label: plat + " 매출", 
+              data: platData, 
+              borderColor: color, 
+              // 1. 전체 성과 트렌드와 동일한 막대 디자인 적용 (단색, 테두리 없음, 둥근 모서리 4px, 두께 32px)
+              backgroundColor: color, 
+              borderWidth: isEventData ? 0 : 2.5, 
+              borderRadius: isEventData ? 4 : 0,
+              maxBarThickness: isEventData ? 32 : undefined,
+              // 2. 압도적인 스케일 차이 극복을 위해 이중 축 할당 (막대는 우측 y1, 선은 좌측 y)
+              yAxisID: isEventData ? "y1" : "y", 
+              pointRadius: isEventData ? 0 : labels.map((_, i) => (i === 0 || i === labels.length - 1) ? 3 : 0),
+              pointHoverRadius: isEventData ? 0 : labels.map((_, i) => (i === 0 || i === labels.length - 1) ? 5 : 0),
+              pointBackgroundColor: "#fff", 
+              tension: 0.3, 
+              order: isEventData ? 2 : 1 
+            });
+            platIndex++;
+          }
+        });
+
+        // 차트 렌더링 및 이중 축(Scales) 옵션 추가
         chartInstances.spendRev = new Chart(document.getElementById("spendRevChart"), {
           data: {
             labels,
-            datasets: [
-              { type: "bar", label: "광고비", data: labels.map((l) => trendGroups[l].s), backgroundColor: "#94a3b8", yAxisID: "y", borderRadius: 4, order: 2, maxBarThickness: 32 },
-              { type: "line", label: "스토어 매출", data: labels.map((l) => trendGroups[l].sr), borderColor: "#8b5cf6", backgroundColor: "#8b5cf6", borderWidth: 2.5, yAxisID: "y1", pointRadius: 3, pointBackgroundColor: "#fff", tension: 0.3, order: 1 }
-            ],
+            datasets: spendRevDatasets,
           },
           options: { 
             responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, 
             plugins: { legend: { labels: { usePointStyle: false, useBorderRadius: true, borderRadius: 3, boxWidth: 18, boxHeight: 6 } }, tooltip: { callbacks: { label: function (context) { return context.dataset.label + ": ₩" + context.parsed.y.toLocaleString(); } } } },
-            scales: { x: { grid: { display: false } }, y: { position: "left", grid: defaultGrid }, y1: { position: "right", grid: { display: false } } } 
+            scales: { 
+              x: { grid: { display: false } }, 
+              // y: 왼쪽 축 (선 그래프 전용)
+              y: { type: "linear", display: true, position: "left", grid: defaultGrid },
+              // y1: 오른쪽 축 (막대그래프 전용) - 격자선 숨김 처리하여 깔끔하게 유지
+              y1: { type: "linear", display: true, position: "right", grid: { display: false } } 
+            } 
           },
         });
-
         const pie = {};
         data.forEach((d) => (pie[d.platform] = (pie[d.platform] || 0) + d.adSpend));
         
@@ -1101,7 +1198,7 @@
         });
         Object.keys(grp).sort().forEach((dt) => {
             const m = calculateMetrics(grp[dt].imp, grp[dt].clk, grp[dt].view, grp[dt].spd, grp[dt].conv, grp[dt].rev);
-            h += `<tr class="${getDayClass(dt)}"><td>${dt}</td><td>${grp[dt].imp.toLocaleString()}</td><td>${grp[dt].clk.toLocaleString()}</td><td>${m.ctr}%</td><td>${Number(m.cpc).toLocaleString()}</td><td>${grp[dt].view.toLocaleString()}</td><td>${Number(m.cpv).toLocaleString()}</td><td>${m.vtr}%</td><td style="color:var(--text-main); font-weight:600;">${grp[dt].spd.toLocaleString()}</td><td>${grp[dt].conv.toLocaleString()}</td><td style="color:var(--accent); font-weight:600;">${grp[dt].rev.toLocaleString()}</td><td>${m.cr}%</td><td>${Number(m.cps).toLocaleString()}</td><td style="color:var(--text-main); font-weight:600;">${m.roas}%</td></tr>`;
+            h += `<tr class="${getDayClass(dt)}"><td>${dt}</td><td>${grp[dt].imp.toLocaleString()}</td><td>${grp[dt].clk.toLocaleString()}</td><td>${m.ctr}%</td><td>${Number(m.cpc).toLocaleString()}</td><td>${grp[dt].view.toLocaleString()}</td><td>${Number(m.cpv).toLocaleString()}</td><td>${m.vtr}%</td><td style="font-weight:600;">${grp[dt].spd.toLocaleString()}</td><td>${grp[dt].conv.toLocaleString()}</td><td style="font-weight:600;">${grp[dt].rev.toLocaleString()}</td><td>${m.cr}%</td><td>${Number(m.cps).toLocaleString()}</td><td style="font-weight:600;">${m.roas}%</td></tr>`;
         });
         const t = aggregateData(data);
         h += `<tr class="row-total"><td>Total</td><td>${t.imp.toLocaleString()}</td><td>${t.clk.toLocaleString()}</td><td>${t.ctr}%</td><td>₩${Number(t.cpc).toLocaleString()}</td><td>${t.view.toLocaleString()}</td><td>${Number(t.cpv).toLocaleString()}</td><td>${t.vtr}%</td><td>${t.spd.toLocaleString()}</td><td>${t.conv.toLocaleString()}</td><td>${t.rev.toLocaleString()}</td><td>${t.cr}%</td><td>${Number(t.cps).toLocaleString()}</td><td>${t.roas}%</td></tr></table></div>`;
