@@ -17,7 +17,7 @@
           // 비밀번호가 틀리면 내용을 아예 지워버리고 백지로 만듭니다.
           document.write("<body style='background:#f8fafc; display:flex; justify-content:center; align-items:center; height:100vh;'><h1 style='color:#64748b; font-family:Pretendard;'>접근 권한이 없습니다.</h1></body>");
           window.stop(); 
-          throw new 오류("Access Denied");
+          throw new Error("Access Denied");
         }
       })();
     </script>
@@ -34,7 +34,7 @@
     />
     <link
       rel="stylesheet"
-      입력="text/css"
+      type="text/css"
       href="https://npmcdn.com/flatpickr/dist/themes/airbnb.css"
     />
 
@@ -209,7 +209,7 @@
         let color = context.dataset.borderColor || context.dataset.backgroundColor;
         
         // 막대 차트나 도넛 차트처럼 배경색(backgroundColor)이 메인인 경우 처리
-        if (context.dataset.입력 === 'bar' || context.chart.config.입력 === 'doughnut') {
+        if (context.dataset.type === 'bar' || context.chart.config.type === 'doughnut') {
             color = context.dataset.backgroundColor;
         }
         // 도넛 차트 등 색상이 배열로 지정된 경우 해당 인덱스 색상 추출
@@ -372,7 +372,7 @@
             if (startStr && endStr && dailyCost > 0) {
               const s = startStr.split("-"); let d = new Date(s[0], s[1] - 1, s[2]);
               const e = endStr.split("-"); let endD = new Date(e[0], e[1] - 1, e[2]);
-              if (endD > 어제Date) endD = 어제Date;
+              if (endD > yesterdayDate) endD = yesterdayDate;
               while (d <= endD) {
                 masterData.push({ date: getLocalYYYYMMDD(d), platform, adName, impression: 0, click: 0, view: 0, adSpend: dailyCost, conversions: 0, revenue: 0 });
                 d.setDate(d.getDate() + 1);
@@ -678,8 +678,8 @@
                 data: {
                     labels: trendLabels,
                     datasets: [
-                        { 입력: "bar", label: "조회수", data: trendLabels.map(l => dailyTrend[l].views), backgroundColor: "#cbd5e1", yAxisID: "y", borderRadius: 4, order: 2, maxBarThickness: 32 },
-                        { 입력: "line", label: "반응수(댓글+좋아요)", data: trendLabels.map(l => dailyTrend[l].engagement), borderColor: "#ef4444", backgroundColor: "#ef4444", borderWidth: 2.5, yAxisID: "y1", pointRadius: 4, pointBackgroundColor: "#fff", tension: 0.3, order: 1 }
+                        { type: "bar", label: "조회수", data: trendLabels.map(l => dailyTrend[l].views), backgroundColor: "#cbd5e1", yAxisID: "y", borderRadius: 4, order: 2, maxBarThickness: 32 },
+                        { type: "line", label: "반응수(댓글+좋아요)", data: trendLabels.map(l => dailyTrend[l].engagement), borderColor: "#ef4444", backgroundColor: "#ef4444", borderWidth: 2.5, yAxisID: "y1", pointRadius: 4, pointBackgroundColor: "#fff", tension: 0.3, order: 1 }
                     ]
                 },
                 options: { 
@@ -705,7 +705,7 @@
             const pieCommValues = Object.values(groupedCommPieData);
 
             chartInstances.viralPie = new Chart(document.getElementById("viralPieChart"), {
-                입력: "doughnut",
+                type: "doughnut",
                 data: {
                     labels: pieCommLabels,
                     datasets: [{ data: pieCommValues, backgroundColor: pieCommLabels.map((p, i) => palette[i % palette.length]), borderWidth: 0, borderRadius: pieCommLabels.length <= 1 ? 0 : 6, spacing: 4 }]
@@ -997,8 +997,8 @@
           document.getElementById("tot-ctr").innerText = `클릭 (CTR ${m.ctr}%)`;
           document.getElementById("tot-clk").innerText = m.clk.toLocaleString();
 
-          ['spd', 'rev', 'clk'].forEach(입력 => {
-              const oldEl = document.getElementById(입력 + "-b"); if (oldEl) oldEl.remove();
+          ['spd', 'rev', 'clk'].forEach(type => {
+              const oldEl = document.getElementById(type + "-b"); if (oldEl) oldEl.remove();
           });
           document.getElementById("tot-spd").parentElement.insertAdjacentHTML('beforeend', htmlSpd);
           document.getElementById("tot-rev").parentElement.insertAdjacentHTML('beforeend', htmlRev);
@@ -1064,8 +1064,8 @@
           data: {
             labels,
             datasets: [
-              { 입력: "bar", label: "광고비", data: labels.map((l) => trendGroups[l].s), backgroundColor: "#94a3b8", yAxisID: "y", borderRadius: 4, order: 2, maxBarThickness: 32 },
-              { 입력: "line", label: "광고 매출", data: labels.map((l) => trendGroups[l].r), borderColor: "#3b82f6", backgroundColor: "#3b82f6", borderWidth: 2.5, yAxisID: "y1", pointRadius: 3, pointBackgroundColor: "#fff", tension: 0.3, order: 1 }
+              { type: "bar", label: "광고비", data: labels.map((l) => trendGroups[l].s), backgroundColor: "#94a3b8", yAxisID: "y", borderRadius: 4, order: 2, maxBarThickness: 32 },
+              { type: "line", label: "광고 매출", data: labels.map((l) => trendGroups[l].r), borderColor: "#3b82f6", backgroundColor: "#3b82f6", borderWidth: 2.5, yAxisID: "y1", pointRadius: 3, pointBackgroundColor: "#fff", tension: 0.3, order: 1 }
             ],
           },
           options: { 
@@ -1079,7 +1079,7 @@
         });
 
         chartInstances.cvr = new Chart(document.getElementById("cvrChart"), {
-          입력: "line",
+          type: "line",
           data: {
             labels,
             datasets: [
@@ -1105,8 +1105,8 @@
             },
             scales: { 
               x: { grid: { display: false } }, 
-              y: { 입력: "linear", display: true, position: "left", beginAtZero: true, grid: defaultGrid },
-              y1: { 입력: "linear", display: true, position: "right", beginAtZero: true, grid: { display: false } }
+              y: { type: "linear", display: true, position: "left", beginAtZero: true, grid: defaultGrid },
+              y1: { type: "linear", display: true, position: "right", beginAtZero: true, grid: { display: false } }
             } 
           },
         });
@@ -1128,7 +1128,7 @@
             const isEventData = plat.includes("쿠팡") || plat.includes("공구");
             
             spendRevDatasets.push({
-              입력: isEventData ? "bar" : "line", 
+              type: isEventData ? "bar" : "line", 
               label: plat + " 매출", 
               data: platData, 
               borderColor: color, 
@@ -1161,9 +1161,9 @@
             scales: { 
               x: { grid: { display: false } }, 
               // y: 왼쪽 축 (선 그래프 전용)
-              y: { 입력: "linear", display: true, position: "left", grid: defaultGrid },
+              y: { type: "linear", display: true, position: "left", grid: defaultGrid },
               // y1: 오른쪽 축 (막대그래프 전용) - 격자선 숨김 처리하여 깔끔하게 유지
-              y1: { 입력: "linear", display: true, position: "right", grid: { display: false } } 
+              y1: { type: "linear", display: true, position: "right", grid: { display: false } } 
             } 
           },
         });
@@ -1175,7 +1175,7 @@
         const pieValues = Object.values(groupedPieData);
 
         chartInstances.pie = new Chart(document.getElementById("pieChart"), {
-          입력: "doughnut",
+          type: "doughnut",
           data: { 
               labels: pieLabels, 
               datasets: [{ data: pieValues, backgroundColor: pieLabels.map(getConsistentColor), borderWidth: 0, borderRadius: pieLabels.length === 1 ? 0 : 8, spacing: pieLabels.length === 1 ? 0 : 4 }] 
@@ -1189,7 +1189,7 @@
           roas[d.platform].s += d.adSpend; roas[d.platform].r += d.revenue;
         });
         chartInstances.roas = new Chart(document.getElementById("roasChart"), {
-          입력: "bar",
+          type: "bar",
           data: { labels: Object.keys(roas), datasets: [{ label: "Ad ROAS (%)", data: Object.keys(roas).map((p) => roas[p].s > 0 ? ((roas[p].r / roas[p].s) * 100).toFixed(0) : 0), backgroundColor: Object.keys(roas).map((p) => brandColors[p.toLowerCase()] || "#cbd5e0"), borderRadius: 4, borderSkipped: false, maxBarThickness: 40 }] },
           options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: "매체별 광고 ROAS 비교", font: { size: 14, weight: "700" }, color: "#1e293b" }, legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: defaultGrid } } },
         });
@@ -1208,8 +1208,8 @@
           data: {
             labels,
             datasets: [
-              { 입력: "bar", label: "광고비", data: labels.map((l) => dly[l].s), backgroundColor: "#94a3b8", yAxisID: "y", order: 2, borderRadius: 4, maxBarThickness: 32 },
-              { 입력: "line", label: "광고 매출", data: labels.map((l) => dly[l].r), borderColor: "#3b82f6", backgroundColor: "#3b82f6", borderWidth: 2.5, yAxisID: "y1", pointRadius: 3, pointBackgroundColor: "#fff", tension: 0.3, order: 1 }
+              { type: "bar", label: "광고비", data: labels.map((l) => dly[l].s), backgroundColor: "#94a3b8", yAxisID: "y", order: 2, borderRadius: 4, maxBarThickness: 32 },
+              { type: "line", label: "광고 매출", data: labels.map((l) => dly[l].r), borderColor: "#3b82f6", backgroundColor: "#3b82f6", borderWidth: 2.5, yAxisID: "y1", pointRadius: 3, pointBackgroundColor: "#fff", tension: 0.3, order: 1 }
             ],
           },
           options: { 
@@ -1230,7 +1230,7 @@
         const pieValuesDetail = Object.values(groupedPieDataDetail);
 
         chartInstances.pie = new Chart(document.getElementById("pieChart"), {
-          입력: "doughnut",
+          type: "doughnut",
           data: { 
               labels: pieLabelsDetail, 
               datasets: [{ data: pieValuesDetail, backgroundColor: pieLabelsDetail.map(getConsistentColor), borderWidth: 0, borderRadius: pieLabelsDetail.length === 1 ? 0 : 8, spacing: pieLabelsDetail.length === 1 ? 0 : 4 }] 
@@ -1258,7 +1258,7 @@
             const adData = labels.map(l => (adRevTrendData[l] && adRevTrendData[l][ad]) ? adRevTrendData[l][ad] : 0);
             
             adRevDatasets.push({
-                입력: "line",
+                type: "line",
                 label: ad + " 매출",
                 data: adData,
                 borderColor: color,
