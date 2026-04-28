@@ -9,24 +9,6 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23FF5F1F'/%3E%3Cpath d='M 68 32 A 25.5 25.5 0 1 0 68 68 V 50 H 46' fill='none' stroke='%23FFFFFF' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
     />
-    <script>
-      (function () {
-        // 원하는 비밀번호를 아래 "0000" 대신 입력하세요.
-        const securePassword = "0701";
-
-        const userInput = prompt("보안을 위해 비밀번호를 입력해주세요.");
-
-        if (userInput !== securePassword) {
-          alert("비밀번호가 올바르지 않습니다. 다시 시도해주세요.");
-          document.write(
-            "<body style='background:#f8fafc; display:flex; justify-content:center; align-items:center; height:100vh;'><h1 style='color:#64748b; font-family:Pretendard;'>접근 권한이 없습니다.</h1></body>",
-          );
-          window.stop();
-          throw new Error("Access Denied");
-        }
-      })();
-    </script>
-
     <link
       rel="stylesheet"
       as="style"
@@ -52,8 +34,25 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="sidebar">
-      <div class="logo"><span>✦</span> GENEF</div>
+    <div id="login-screen" class="login-overlay">
+      <div class="login-card">
+        <div class="logo"><span>✦</span> GENEF</div>
+        <h2>대시보드 접속</h2>
+        <p>보안을 위해 비밀번호를 입력해주세요.</p>
+        
+        <div class="login-field">
+          <input type="password" id="pw-input" class="login-input" placeholder="비밀번호 입력" onkeypress="if(event.keyCode==13) checkLogin()">
+          <div id="error-txt" class="error-msg">비밀번호가 올바르지 않습니다.</div>
+        </div>
+        
+        <button class="btn-login" onclick="checkLogin()">접속하기</button>
+      </div>
+    </div>
+
+    <div id="dashboard-content" class="main-dashboard-content">
+
+      <div class="sidebar">
+        <div class="logo"><span>✦</span> GENEF</div>
       <div id="nav-container" style="flex: 1"></div>
     </div>
 
@@ -121,10 +120,34 @@
         </div>
       </div>
       <div class="content-scroll" id="content-container">
-        <div class="loading">데이터를 불러오는 중입니다...</div>
+          <div class="loading">데이터를 불러오는 중입니다...</div>
+        </div>
       </div>
-    </div>
+    
+    </div> 
 
+    <script>
+      function checkLogin() {
+        const encodedPassword = "MDcwMQ=="; // 비밀번호 "0701"의 암호화 값
+        const input = document.getElementById('pw-input').value;
+        const errorTxt = document.getElementById('error-txt');
+        const loginScreen = document.getElementById('login-screen');
+        const dashboardContent = document.getElementById('dashboard-content');
+
+        if (btoa(input) === encodedPassword) {
+          // 접속 성공
+          loginScreen.style.display = 'none';
+          dashboardContent.style.display = 'flex';
+        } else {
+          // 접속 실패
+          errorTxt.style.display = 'block';
+          const pwInput = document.getElementById('pw-input');
+          pwInput.value = '';
+          pwInput.focus();
+        }
+      }
+    </script>
+    
     <script src="script.js"></script>
   </body>
 </html>

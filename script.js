@@ -366,7 +366,9 @@ function renderTab(tab, isFilterChange = false) {
   const iconSpd = `<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`;
   const iconAdRev = `<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>`;
   const iconClk = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;        
-  
+  // [수정] CPS용 가격표 아이콘 추가
+  const iconCps = `<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>`;
+ 
   if (tab === "VIRAL") {
       let totalPosts = currentViralData.length;
       let totalViews = 0, totalComments = 0, totalLikes = 0;
@@ -567,10 +569,11 @@ function renderTab(tab, isFilterChange = false) {
               <div class="ai-card-base ai-section" style="padding: 32px;">
                   <div class="scorecard-header">
                       <div class="scorecard-icon" style="background: #f1f5f9; width: 52px; height: 52px; display: flex; align-items: center; justify-content: center;">
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-<polygon points="2 20 22 20 20 6 16 12 12 4 8 12 4 6 2 20"></polygon>
-<line x1="2" y1="22" x2="22" y2="22"></line>
-</svg>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                      </svg>
                       </div>
                       <h3 class="card-title" style="font-size: 15px; font-weight: 700; color: var(--text-main); margin: 0;">공동구매 총 매출</h3>
                   </div>
@@ -636,12 +639,13 @@ function renderTab(tab, isFilterChange = false) {
   let baseData = tab === "TOTAL" || tab === "DASHBOARD" ? currentData : currentData.filter((d) => d.platform === tab);
   
   const getBreakdownHtml = (data, isGlobal) => {
-    let bSpd = {}, bRev = {}, bClk = {};
+    let bSpd = {}, bRev = {}, bClk = {}, bConv = {};
     data.forEach(d => {
         let key = isGlobal ? d.platform : d.adName; 
         bSpd[key] = (bSpd[key] || 0) + d.adSpend;
         bRev[key] = (bRev[key] || 0) + d.revenue;
         bClk[key] = (bClk[key] || 0) + d.click;
+        bConv[key] = (bConv[key] || 0) + d.conversions;
     });
     const makeHtml = (dict, type) => {
         const details = Object.entries(dict).filter(([k, v]) => v > 0).sort((a, b) => b[1] - a[1]) 
@@ -649,7 +653,14 @@ function renderTab(tab, isFilterChange = false) {
             .join(' <span style="color:#cbd5e1; margin:0 4px;">|</span> ');
         return details ? `<div id="${type}-b" class="breakdown-text">${details}</div>` : `<div id="${type}-b" style="display:none;"></div>`;
     };
-    return { htmlSpd: makeHtml(bSpd, 'spd'), htmlRev: makeHtml(bRev, 'rev'), htmlClk: makeHtml(bClk, 'clk') };
+
+    // [수정] 전환 단가(CPS) 전용 하단 내역 생성 로직 추가
+    const detailsCps = Object.keys(bConv).filter(k => bConv[k] > 0).sort((a,b) => bConv[b] - bConv[a])
+        .map(k => `<span><span style="color:var(--text-sub);">${k}</span> <b style="color:var(--text-main);">₩&nbsp;${Number((bSpd[k]/bConv[k]).toFixed(0)).toLocaleString()}</b></span>`)
+        .join(' <span style="color:#cbd5e1; margin:0 4px;">|</span> ');
+    const htmlCps = detailsCps ? `<div id="cps-b" class="breakdown-text">${detailsCps}</div>` : `<div id="cps-b" style="display:none;"></div>`;
+
+    return { htmlSpd: makeHtml(bSpd, 'spd'), htmlRev: makeHtml(bRev, 'rev'), htmlClk: makeHtml(bClk, 'clk'), htmlCps };
   };
 
   let mappedTabForRev = tab;
@@ -681,30 +692,54 @@ function renderTab(tab, isFilterChange = false) {
 
   if (tab === "DASHBOARD") {
     const m = aggregateData(baseData);
-    const mallRoas = m.spd > 0 ? ((totalMallRevenue / m.spd) * 100).toFixed(0) : 0;
-    const { htmlSpd, htmlRev, htmlClk } = getBreakdownHtml(baseData, true);
+    
+    // [수정] 공동구매 매출 계산 및 순수 스토어 매출 산출
+    let totalCoopRev = 0;
+    const coopBreakdown = {};
+    filteredRevenue.forEach(d => {
+        if (d.category.includes("공구")) {
+            totalCoopRev += d.total_revenue;
+            coopBreakdown[d.category] = (coopBreakdown[d.category] || 0) + d.total_revenue;
+        }
+    });
+
+    // 전체 매출에서 공구 매출을 제외한 순수 스토어 매출 및 ROAS 계산
+    const pureStoreRevenue = Math.max(0, totalMallRevenue - totalCoopRev);
+    const pureMallRoas = m.spd > 0 ? ((pureStoreRevenue / m.spd) * 100).toFixed(0) : 0;
+
+    const iconCoop = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>`;
+    
+    const htmlCoop = totalCoopRev > 0 
+        ? `<div class="breakdown-text">` + Object.entries(coopBreakdown).sort((a,b) => b[1]-a[1]).map(([k,v]) => `<span><span style="color:var(--text-sub);">${k}</span> <b style="color:var(--text-main);">${v.toLocaleString()}</b></span>`).join(' <span style="color:#cbd5e1; margin:0 4px;">|</span> ') + `</div>`
+        : `<div class="breakdown-text" style="color: #94a3b8; font-weight: 500;">💡 선택된 기간 내 진행 내역이 없습니다.</div>`;
+
+    const { htmlSpd, htmlRev } = getBreakdownHtml(baseData, true);
 
     c.innerHTML = `
         <div class="grid-scorecards">
             <div class="card">
                 <div class="scorecard-header">
                     <div class="scorecard-icon icon-blue">${iconRev}</div>
-                    <h3 class="card-title">스토어 매출 (몰 ROAS ${mallRoas}%)</h3>
+                    <h3 class="card-title">스토어 매출 (공구 제외 ROAS ${pureMallRoas}%)</h3>
                 </div>
-                <div class="card-value">₩&nbsp;${totalMallRevenue.toLocaleString()}</div>
-                ${revBreakdownHtml}${catBreakdownHtml}
+                <div class="card-value">₩&nbsp;${pureStoreRevenue.toLocaleString()}</div>
+                ${revBreakdownHtml}
             </div>
             <div class="card">
                 <div class="scorecard-header"><div class="scorecard-icon icon-red">${iconSpd}</div><h3 class="card-title">총 광고비</h3></div>
                 <div class="card-value" id="tot-spd">₩&nbsp;${m.spd.toLocaleString()}</div>${htmlSpd}
             </div>
             <div class="card">
-                <div class="scorecard-header"><div class="scorecard-icon icon-orange">${iconAdRev}</div><h3 class="card-title">광고 매출 (Ad ROAS ${m.roas}%)</h3></div>
+                <div class="scorecard-header"><div class="scorecard-icon icon-green">${iconAdRev}</div><h3 class="card-title">광고 매출 (Ad ROAS ${m.roas}%)</h3></div>
                 <div class="card-value" id="tot-rev">₩&nbsp;${m.rev.toLocaleString()}</div>${htmlRev}
             </div>
             <div class="card">
-                <div class="scorecard-header"><div class="scorecard-icon icon-green">${iconClk}</div><h3 class="card-title">총 클릭수 (CTR ${m.ctr}%)</h3></div>
-                <div class="card-value" id="tot-clk">${m.clk.toLocaleString()}</div>${htmlClk}
+                <div class="scorecard-header">
+                    <div class="scorecard-icon icon-orange">${iconCoop}</div>
+                    <h3 class="card-title">공동구매 총 매출</h3>
+                </div>
+                <div class="card-value">${totalCoopRev > 0 ? '₩&nbsp;' + totalCoopRev.toLocaleString() : '<span style="font-size:16px; color:#94a3b8; font-weight:600;">진행 데이터 없음</span>'}</div>
+                ${htmlCoop}
             </div>
         </div>
         <div class="grid-charts">
@@ -736,7 +771,8 @@ function renderTab(tab, isFilterChange = false) {
   const mallRoas = m.spd > 0 ? ((totalMallRevenue / m.spd) * 100).toFixed(0) : 0;
   const mainTitleText = tab.toLowerCase() === "meta" || tab === "메타" ? "자사몰 총 매출" : "스토어 총 매출";
   const isGlobal = (tab === "TOTAL");
-  const { htmlSpd, htmlRev, htmlClk } = getBreakdownHtml(displayData, isGlobal);
+ // [수정] htmlCps 변수 호출 추가
+  const { htmlSpd, htmlRev, htmlClk, htmlCps } = getBreakdownHtml(displayData, isGlobal);
 
   if (!isFilterChange) {
     c.innerHTML = `
@@ -748,15 +784,15 @@ function renderTab(tab, isFilterChange = false) {
             </div>
             <div class="card">
                 <div class="scorecard-header"><div class="scorecard-icon icon-red">${iconSpd}</div><h3 class="card-title">광고비</h3></div>
-                <div class="card-value" id="tot-spd">₩${m.spd.toLocaleString()}</div>${htmlSpd}
+                <div class="card-value" id="tot-spd">₩&nbsp;${m.spd.toLocaleString()}</div>${htmlSpd}
             </div>
             <div class="card">
-                <div class="scorecard-header"><div class="scorecard-icon icon-orange">${iconAdRev}</div><h3 class="card-title" id="tot-roas">광고 매출액 (Ad ROAS ${m.roas}%)</h3></div>
-                <div class="card-value" id="tot-rev">₩${m.rev.toLocaleString()}</div>${htmlRev}
+                <div class="scorecard-header"><div class="scorecard-icon icon-green">${iconAdRev}</div><h3 class="card-title" id="tot-roas">광고 매출액 (Ad ROAS ${m.roas}%)</h3></div>
+                <div class="card-value" id="tot-rev">₩&nbsp;${m.rev.toLocaleString()}</div>${htmlRev}
             </div>
             <div class="card">
-                <div class="scorecard-header"><div class="scorecard-icon icon-green">${iconClk}</div><h3 class="card-title" id="tot-ctr">클릭 (CTR ${m.ctr}%)</h3></div>
-                <div class="card-value" id="tot-clk">${m.clk.toLocaleString()}</div>${htmlClk}
+                <div class="scorecard-header"><div class="scorecard-icon icon-orange">${iconCps}</div><h3 class="card-title" id="tot-cps">전환 단가 (총 전환 ${m.conv.toLocaleString()}건)</h3></div>
+                <div class="card-value" id="tot-cps-val">₩&nbsp;${Number(m.cps).toLocaleString()}</div>${htmlCps}
             </div>
         </div>
         <div class="grid-charts-full"><div class="card" style="height:340px;"><canvas id="lineChart"></canvas></div></div>
@@ -779,25 +815,32 @@ function renderTab(tab, isFilterChange = false) {
     }
   } else {
     document.getElementById("m-t").innerText = `${mainTitleText} (몰 ROAS ${mallRoas}%)`;
-    document.getElementById("m-v").innerText = `₩${totalMallRevenue.toLocaleString()}`;
+    // [수정] innerText를 innerHTML로 변경하여 띄어쓰기(&nbsp;) 적용
+    document.getElementById("m-v").innerHTML = `₩&nbsp;${totalMallRevenue.toLocaleString()}`;
     const scorecardCard = document.getElementById("m-t").closest('.card');
     if (scorecardCard) {
         const oldMB = document.getElementById("m-b"); const oldCB = document.getElementById("c-b");
         if (oldMB) oldMB.remove(); if (oldCB) oldCB.remove();
         scorecardCard.insertAdjacentHTML('beforeend', revBreakdownHtml + catBreakdownHtml);
     }
-    document.getElementById("tot-spd").innerText = `₩${m.spd.toLocaleString()}`;
+    // [수정] 모두 innerHTML 기반 띄어쓰기 적용
+    document.getElementById("tot-spd").innerHTML = `₩&nbsp;${m.spd.toLocaleString()}`;
     document.getElementById("tot-roas").innerText = `광고 매출액 (Ad ROAS ${m.roas}%)`;
-    document.getElementById("tot-rev").innerText = `₩${m.rev.toLocaleString()}`;
-    document.getElementById("tot-ctr").innerText = `클릭 (CTR ${m.ctr}%)`;
-    document.getElementById("tot-clk").innerText = m.clk.toLocaleString();
+    document.getElementById("tot-rev").innerHTML = `₩&nbsp;${m.rev.toLocaleString()}`;
+    
+    const elCpsTitle = document.getElementById("tot-cps");
+    if (elCpsTitle) elCpsTitle.innerText = `전환 단가 (총 전환 ${m.conv.toLocaleString()}건)`;
+    const elCpsVal = document.getElementById("tot-cps-val");
+    if (elCpsVal) elCpsVal.innerHTML = `₩&nbsp;${Number(m.cps).toLocaleString()}`;
 
-    ['spd', 'rev', 'clk'].forEach(type => {
+    // [수정] clk를 cps로 변경하고, 하단 내역 삽입
+    ['spd', 'rev', 'cps'].forEach(type => {
         const oldEl = document.getElementById(type + "-b"); if (oldEl) oldEl.remove();
     });
     document.getElementById("tot-spd").parentElement.insertAdjacentHTML('beforeend', htmlSpd);
     document.getElementById("tot-rev").parentElement.insertAdjacentHTML('beforeend', htmlRev);
-    document.getElementById("tot-clk").parentElement.insertAdjacentHTML('beforeend', htmlClk);
+    if(document.getElementById("tot-cps-val")) document.getElementById("tot-cps-val").parentElement.insertAdjacentHTML('beforeend', htmlCps);
+    // 클릭(htmlClk) 내역 렌더링 코드는 카드 제거로 인해 삭제
 
     document.getElementById("table-card").innerHTML = `<div class="table-header"><div class="table-title">상세 데이터 테이블</div><div id="ad-filter-area"></div></div><div id="data-table"></div>`;
     const uniqueAds = [...new Set(baseData.map((d) => d.adName).filter((n) => n && n !== "-"))];
