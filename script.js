@@ -249,8 +249,23 @@ window.onload = async function () {
 function setQuickDate(days, btn) {
   document.querySelectorAll(".btn-quick-date").forEach((el) => el.classList.remove("active"));
   btn?.classList.add("active");
-  const end = new Date(yesterdayDate), start = new Date(yesterdayDate);
-  start.setDate(end.getDate() - (days === 1 ? 0 : days - 1));
+  
+  let start, end;
+  
+  // [수정] 'lastMonth'가 전달되었을 때 지난달 1일 ~ 말일 계산 로직 추가
+  if (days === 'lastMonth') {
+    const now = new Date();
+    start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    end = new Date(now.getFullYear(), now.getMonth(), 0);
+    // 혹시 모를 미래 데이터 방어 코드 (말일이 어제보다 미래일 경우 어제로 제한)
+    if (end > yesterdayDate) end = new Date(yesterdayDate);
+  } else {
+    // 기존 N일 로직
+    end = new Date(yesterdayDate);
+    start = new Date(yesterdayDate);
+    start.setDate(end.getDate() - (days === 1 ? 0 : days - 1));
+  }
+  
   fpInstance.setDate([start, end]);
   applyDateFilter(start, end);
 }
